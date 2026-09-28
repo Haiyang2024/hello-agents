@@ -1,0 +1,20 @@
+# ── 核心依赖 ──
+# 本工程实测于 HelloAgents 0.2.9，用到的接口：SimpleAgent、FunctionCallAgent、ReActAgent、
+# Tool、ToolParameter、ToolRegistry、HelloAgentsLLM。
+#
+# 两处写法上的注意事项（都经过检查，不是随手写的）：
+#   1. 不写 [all]：PyPI 上该包并未声明任何 extras，写 `hello-agents[all]` 只会收到一条
+#      "does not provide the extra" 警告，安装结果与基础包完全一致；
+#   2. 上限收到 1.0.0 以下：1.0.0 是比 0.2.9 更晚发布的大版本，未经兼容性验证，
+#      若只写 `>=0.2.7`，安装时会解析到 1.0.0，可能直接导致代码跑不通。
+hello-agents>=0.2.9,<1.0.0
+
+# ── 政策检索 ──
+# 中文分词 + 纯 Python BM25，刻意不引入向量库与嵌入模型：
+# 本工程要保证自包含、可离线跑、体积远小于 5MB
+jieba>=0.42.1
+
+# ── 配置与数据读取 ──
+# 两者已由 hello-agents 传递带入，这里显式声明以表明是本工程的直接依赖
+PyYAML>=6.0
+python-dotenv>=1.0
