@@ -26,7 +26,7 @@ from dotenv import find_dotenv, load_dotenv  # noqa: E402
 
 load_dotenv(find_dotenv(usecwd=True))  # 先读工作目录下的 .env，再向上查找
 
-from src.agents import MODES, AgentRunner  # noqa: E402
+from src.agents import MODES, AgentRunner, require_llm_env  # noqa: E402
 from src.retriever import PolicyRetriever  # noqa: E402
 from src.tools import CATEGORY_RULE, check_red_lines  # noqa: E402
 
@@ -393,6 +393,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    # 启动前校验：宁可现在报错，也不要启动后每次都返回空回答
+    require_llm_env()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
     stats = RETRIEVER.stats()
     print("=" * 60)

@@ -19,12 +19,18 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from dotenv import find_dotenv, load_dotenv
 from hello_agents import FunctionCallAgent, HelloAgentsLLM, ReActAgent, SimpleAgent
+
+# 从当前文件逐级向上找 .env。放在模块级，是为了让所有入口（命令行、Notebook、
+# Web 演示、单元测试）行为一致，不依赖调用方记得先加载配置。
+load_dotenv(find_dotenv())
 
 from .prompts import REACT_TEMPLATE, SYSTEM_PROMPT, build_user_message
 from .retriever import PolicyRetriever
@@ -48,6 +54,47 @@ MODES: dict[str, dict[str, str]] = {
         "capability": "多步推理、先规划再检索、出稿后自检红线",
     },
 }
+
+
+#: 必填的模型接入配置：键是环境变量名，值是给使用者的说明
+REQUIRED_ENV: dict[str, str] = {
+    "LLM_MODEL_ID": "模型名称，例如 gpt-4o-mini 或 deepseek-chat",
+    "LLM_API_KEY": "API 密钥",
+    "LLM_BASE_URL": "OpenAI 兼容接口地址，例如 https://api.deepseek.com/v1",
+}
+
+#: .env.example 里的示例值。若仍原样出现，说明使用者复制了模板却没改内容。
+PLACEHOLDER_VALUES = {
+    "your-model-id",
+    "your-api-key",
+    "https://your-endpoint.example.com/v1",
+}
+
+
+def require_llm_env() -> None:
+    """启动前校验模型接入配置，不满足就立即停止并给出可操作提示。
+
+    为什么必须有：框架的 ``HelloAgentsLLM`` 在缺少配置时**不会报错**，真正的失败发生在
+    第一次调用模型时；而本工程对单条样本的异常做了兜底，于是评测会"顺利跑完"并输出
+    一份指标全 0 的报告。使用者看到"红线违规 0.0%"很可能以为是好事，而不是配置没填——
+    这种静默失败必须在启动阶段就拦住。
+
+    实测（全新虚拟环境、未配置 .env）：不加校验会白跑 30 条样本 × 3 个模式。
+    """
+    missing = [key for key in REQUIRED_ENV if not (os.getenv(key) or "").strip()]
+    placeholder = [key for key in REQUIRED_ENV if (os.getenv(key) or "").strip() in PLACEHOLDER_VALUES]
+    if not missing and not placeholder:
+        return
+
+    lines = ["模型接入配置不完整，已停止运行。", ""]
+    if missing:
+        lines.append("  缺少环境变量：" + "、".join(missing))
+    if placeholder:
+        lines.append("  仍为模板占位值：" + "、".join(placeholder))
+    lines += ["", "处理方式：", "  cp .env.example .env", "  然后用编辑器填入以下三项："]
+    lines += [f"    {key}  —— {tip}" for key, tip in REQUIRED_ENV.items()]
+    lines += ["", "（三项都能在所用模型服务商的控制台里找到；接口需兼容 OpenAI 协议。）"]
+    raise SystemExit("\n".join(lines))
 
 
 @dataclass
@@ -134,6 +181,8 @@ class AgentRunner:
     """按模式构建智能体并执行单条工单。"""
 
     def __init__(self, retriever: PolicyRetriever, temperature: float = 0.0, quiet: bool = True):
+        # 构建任何模式之前先确认配置可用：否则会"能跑但每条都是空回答"
+        require_llm_env()
         self.retriever = retriever
         self.temperature = temperature
         self.quiet = quiet

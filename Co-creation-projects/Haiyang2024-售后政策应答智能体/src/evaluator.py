@@ -27,7 +27,7 @@ from pathlib import Path
 import yaml
 from dotenv import find_dotenv, load_dotenv
 
-from .agents import MODES, AgentRunner
+from .agents import MODES, AgentRunner, require_llm_env
 from .retriever import PolicyRetriever
 from .tools import CATEGORY_RULE, check_red_lines
 
@@ -304,6 +304,9 @@ def main() -> None:
     parser.add_argument("--out", type=str, default="outputs", help="输出目录")
     parser.add_argument("--verbose", action="store_true", help="打印框架内部日志")
     args = parser.parse_args()
+
+    # 尽早失败：配置不全时不要白跑 30 条样本 × 3 个模式（实测约 30 分钟）
+    require_llm_env()
 
     root = Path(__file__).resolve().parent.parent
     retriever = PolicyRetriever(root / "data" / "knowledge_base")

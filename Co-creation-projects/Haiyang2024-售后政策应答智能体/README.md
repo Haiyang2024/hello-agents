@@ -65,6 +65,10 @@
 pip install -r requirements.txt
 ```
 
+> 依赖清单里有一项看起来与本工程无关的 `huggingface-hub`，它**不能删**：
+> `hello-agents` 在 `tools/__init__.py` 中无条件导入了第 12 章的评测工具，而这些工具依赖
+> 该包——也就是说，只要 `import hello_agents` 就会连带加载它。原因与实测记录见 `requirements.txt`。
+
 ### 配置 API 密钥
 
 ```bash
@@ -94,6 +98,28 @@ python -m src.evaluator --limit 5 --verbose
 ```
 
 评测结果写入 `outputs/comparison.md`，逐条明细写入 `outputs/runs/detail.json`。
+
+> 三个入口都会在启动前校验模型接入配置：如果 `.env` 缺失，或仍是 `.env.example` 里的
+> 占位值，会立即打印缺失项与填写方法并退出——不会"跑完一遍只得到一堆空回答"。
+
+### 常见问题
+
+**运行时报 `ModuleNotFoundError: No module named 'huggingface_hub'`**
+
+依赖没装全。请按本工程的 `requirements.txt` 安装（`pip install -r requirements.txt`），
+而不是只装 `hello-agents`——原因见上方"安装依赖"处的说明。
+
+**模式 B 报错说模型不接受 `tools` 参数**
+
+你使用的接口不支持 OpenAI 原生 function calling。两种处理方式：换用支持原生调用的模型；
+或把模式 B 改成 `SimpleAgent` + 同一个 `search_policy` 工具（`src/agents.py` 的 `_build`
+里改两行即可）。模式 C 走的是文本格式的 ReAct，不受此限制。
+
+**模式 C 的回答偶尔为空，或提示"已从执行轨迹取回"**
+
+`ReActAgent` 用行内正则解析 `Finish[...]`，模型偶尔把方括号内容写成多行就会解析不到。
+本工程已做兜底：解析为空时从执行轨迹里取回最后一次 `check_compliance` 的草稿，并在结果中
+标注来源，避免把"解析失败"静默成"没有回答"。
 
 ## 项目结构
 
